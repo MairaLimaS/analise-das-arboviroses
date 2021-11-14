@@ -1,0 +1,348 @@
+---
+title: "Gráfico de dispersão e Matriz de correlação"
+output:
+  word_document:
+    toc: yes
+  html_document:
+    highlight: tango
+    lib_dir: libs
+    number_sections: yes
+    theme: yeti
+    toc: yes
+    toc_float:
+      collapse: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, comment = '', warning = FALSE)
+```
+
+Após a seleção de variáveis o problema estatístico postulado dizia respeito a perceber a associação da inicidência de casos de arboviroses com as variáveis selecionadas para compor a análise.  
+
+O primeiro passo foi fazer o gráfico de dispersão das variáveis candidatas (eixo horizontal) versus a incidência das arboviroses (eixo vertical), usando os pares de informações de todos para todo o período. Apenas as variáveis numéricas foram escolhidas para a análise, sendo excluídas, assim, as categóricas. 
+
+Desta forma, as seguintes variáveis foram trabalhadas: 
+
+1. dens_mean = representa a densidade média entre os anos 2016 a 2019 para cada municipio;
+1. percent_medio_ab = percentual médio de cobertura AB para os anos 2016 a 2019, por municipio;
+1. IFDM_geral_2016= Indice FIRJAN de Desenvolvimento Municipal (IFDM); 
+1. SNIS_G12A_2015: contabiliza a	População total residente do(s) município(s) com abastecimento de água, segundo o IBGE/	Habitantes. Ano de análise 2015.
+1. SNIS_G12B_2015:representa a	População total residente do(s) município(s) com esgotamento sanitário, segundo o IBGE/	Habitantes
+1. mediaciclo22: Número médio de ciclos que atingiram mínimo de 80% de cobertura de imóveis visitados para controle vetorial da dengue. 
+
+
+```{r cars}
+
+#load the libraries so you have access to them in your workflow
+
+library("lme4")
+library("ggplot2")
+library("HLMdiag")
+#library("DHARMa")
+library("car") #for the Levene test which we will not discuss here
+library("Matrix")
+library(haven)
+library(dplyr);library(tidyr)
+library(dplyr)
+library(readxl)
+library(utils)
+library(stringr)
+library(data.table)
+library(foreign)
+require(abjutils)
+```
+
+```{r}
+library(haven)
+data <- read_dta("data_multinivel_mun.dta")
+```
+
+```{r}
+dt_semiarido<-read_excel("mun_ba_semiarido.xls", sheet="bahia")%>%select(-ANO,-IBGE7)
+dt_semiarido$mun<-abjutils::rm_accent(toupper(dt_semiarido$mun))
+
+data_1<-data%>%select(-semi_arido)
+data_1<-left_join(data_1,dt_semiarido,by=c("mun"="mun"))
+data_1$semi_arido<-ifelse(is.na(data_1$semi_arido),0, data_1$semi_arido)
+
+```
+
+```{r}
+data<-data_1
+
+data_1$IFDM_geral_2016<-as.numeric(data_1$IFDM_geral_2016)
+data_1$grupo_SES_CRI_2014<-as.numeric(data_1$grupo_SES_CRI_2014)
+data_1<-data_1%>%relocate(semi_arido, .after = mun)
+save(data_1,file="data_multinivel_mun_wide_semiaridocorrigido.RData")
+```
+
+
+```{r}
+data_1<-data_1[,-c(1,2)]
+
+```
+
+
+
+```{r}
+new2_data <- data_1 # %>%
+#  select(-SNIS_G12B_2015)
+  
+na_omit_new2_data=new2_data[complete.cases(new2_data),]
+
+#na_omit_new2_data<-new2_data
+```
+
+# Grafico de dispersão
+
+A análise da dispersão denotou que há uma relação  entre as variaveis de interesse e a incidência das arboviroses. Pelos gráficos, as variaveis candidatas não apresesentam relação de linearidade com a incidência para o período estudado. 
+
+
+Pouco se pode afirmar sobre o desempenho das variáveis de saneamento básico. O alto grau de missing e o fato de não cobirem todos os municipios, mostra-se como um fator limitante para uso.  
+
+## Dengue
+
+
+```{r}
+var.incid<-colnames(na_omit_new2_data)[str_detect(colnames(na_omit_new2_data),regex('^dg_', ignore_case = TRUE))]
+
+library(magrittr)
+library(ggplot2)
+
+var_interess<-c("dens_mean","percent_medio_ab","IFDM_geral_2016","SNIS_G12A_2015","SNIS_G12B_2015",
+                 "mediaciclo22")
+var_categorica<-c("semi_arido","newtipology","grupo_SES_CRI_2014","bioma_2014")
+
+
+
+for (cat in var_interess){
+#for (cat in var_interess[1]){  
+  nome<-ifelse(cat=="dens_mean", "Densidade Média Período",
+               ifelse(cat=="percent_medio_ab", "Cobertura AB Média Período",
+                      ifelse(cat=="IFDM_geral_2016", "Índice Firjan 2016",
+                             ifelse(cat=="SNIS_G12A_2015", "População com Abastecimento de Água",
+                                    ifelse(cat=="SNIS_G12B_2015", "População com Esgotamento Sanitário",
+                                           ifelse(cat=="mediaciclo22", "Ciclo de Monitoramento dengue SISPACTO",cat))))))
+  for (var in var.incid){ 
+  
+  ano<-substr(var, start = 10, stop = 13)
+  p2<-ggplot(na_omit_new2_data, aes_string(x=cat, y=var)) +
+  geom_point(shape = 17, size = 3) +
+  geom_smooth(method = "lm", color="red", se=TRUE) + 
+  ggtitle(paste0("Incidência Dengue ",ano," por ",nome))+
+#  theme(plot.title = element_text(hjust = 0.5))+
+  xlab(nome)+ 
+  ylab(paste0("Incidência dengue ",ano)) 
+  print(p2)
+  
+#  p2
+  cat('\n\n')
+}
+
+
+}
+
+
+```
+
+## Chikungunya
+
+```{r}
+var.incid<-colnames(na_omit_new2_data)[str_detect(colnames(na_omit_new2_data),regex('^chik_', ignore_case = TRUE))]
+
+library(magrittr)
+library(ggplot2)
+
+var_interess<-c("dens_mean","percent_medio_ab","IFDM_geral_2016","SNIS_G12A_2015","SNIS_G12B_2015",
+                 "mediaciclo22")
+var_categorica<-c("semi_arido","newtipology","grupo_SES_CRI_2014","bioma_2014")
+
+
+
+for (cat in var_interess){
+#for (cat in var_interess[1]){  
+  nome<-ifelse(cat=="dens_mean", "Densidade Média Período",
+               ifelse(cat=="percent_medio_ab", "Cobertura AB Média Período",
+                      ifelse(cat=="IFDM_geral_2016", "Índice Firjan 2016",
+                             ifelse(cat=="SNIS_G12A_2015", "População com Abastecimento de Água",
+                                    ifelse(cat=="SNIS_G12B_2015", "População com Esgotamento Sanitário",
+                                           ifelse(cat=="mediaciclo22", "Ciclo de Monitoramento Dengue SISPACTO",cat))))))
+  for (var in var.incid){ 
+  
+  ano<-substr(var, start = 12, stop = 15)
+  p3<-ggplot(na_omit_new2_data, aes_string(x=cat, y=var)) +
+  geom_point(shape = 17, size = 3) +
+  geom_smooth(method = "lm", color="red", se=TRUE) + 
+  ggtitle(paste0("Incidência chikungunya ",ano," por ",nome)) + 
+#  theme(plot.title = element_text(hjust = 0.5))+
+  xlab(nome)+ 
+  ylab(paste0("Incidência chikungunya ",ano)) 
+  print(p3)
+  
+#  p2
+  cat('\n\n')
+}
+
+
+}
+
+```
+
+
+## Zika
+
+```{r}
+var.incid<-colnames(na_omit_new2_data)[str_detect(colnames(na_omit_new2_data),regex('^ZK_', ignore_case = TRUE))]
+
+library(magrittr)
+library(ggplot2)
+
+var_interess<-c("dens_mean","percent_medio_ab","IFDM_geral_2016","SNIS_G12A_2015","SNIS_G12B_2015",
+                 "mediaciclo22")
+var_categorica<-c("semi_arido","newtipology","grupo_SES_CRI_2014","bioma_2014")
+
+
+
+for (cat in var_interess){
+#for (cat in var_interess[1]){  
+  nome<-ifelse(cat=="dens_mean", "Densidade Média Período",
+               ifelse(cat=="percent_medio_ab", "Cobertura AB Média Período",
+                      ifelse(cat=="IFDM_geral_2016", "Indice Firjan 2016",
+                             ifelse(cat=="SNIS_G12A_2015", "População com Abastecimento de Água",
+                                    ifelse(cat=="SNIS_G12B_2015", "População com Esgotamento Sanitário",
+                                           ifelse(cat=="mediaciclo22", "Ciclo de Monitoramento Dengue SISPACTO",cat))))))
+  for (var in var.incid){ 
+  
+  ano<-substr(var, start = 10, stop = 13)
+  p4<-ggplot(na_omit_new2_data, aes_string(x=cat, y=var)) +
+  geom_point(shape = 17, size = 3) +
+  geom_smooth(method = "lm", color="red", se=TRUE) + 
+  ggtitle(paste0("Incidência Zika ",ano," por ",nome)) + 
+#  theme(plot.title = element_text(hjust = 0.5))+
+  xlab(nome)+ 
+  ylab(paste0("Incidência Zika ",ano)) 
+  print(p4)
+  
+#  p2
+  cat('\n\n')
+}
+
+
+}
+
+```
+
+# Matriz de correlação pelo método spearman
+
+Após avalisar a relação das variáveis com o gráfico de dispersão, foi calculado o coeficiente de correlação afim de mensurar o grau de mudança entre duas variáveis em termos de força e a direção da relação. Diante do cenário de não lineridade, foi utilizada a Correlação da ordem de posto de Spearman. A correlação de Spearman avalia a relação monotônica na qual as variáveis tendem a mudar juntas mas não necessariamente a uma taxa constante. 
+
+## Dengue
+
+```{r}
+var.arbo<-colnames(na_omit_new2_data)[str_detect(colnames(na_omit_new2_data),regex('^ZK_|^chik_', ignore_case = TRUE))]
+var.sel<-colnames(na_omit_new2_data)[str_detect(colnames(na_omit_new2_data),regex('^dg_', ignore_case = TRUE))]
+
+dt<-na_omit_new2_data[,!colnames(na_omit_new2_data)%in%var.arbo]
+```
+
+
+Para o ano de 2016, a tabela abaixo evidencia que há uma relação positiva entre a incidência as variáveis de cobertura AB e de saneamento básico. Em 2017, a relação de incidência com a cobertura AB se torna negativa padrão que se repete para os anos seguintes. A partir de 2017 entra na relação também a variável do Firjan. 
+
+```{r}
+knitr::kable(cor(dt[,!colnames(dt)%in% var_categorica],method = "spearman"))
+```
+
+## Mapa de calor exibindo a correlação de variaveis com a dengue
+
+O mapa de calor abaixo pode auxiliar na visualização desta relação:  
+
+```{r}
+library(corrplot)
+M <- cor(dt[,!colnames(dt)%in% var_categorica],method = "spearman")
+#corrplot(M, method = "color")
+```
+  
+
+
+```{r}
+#corrplot(M, order = "hclust", addrect = 3)
+corrplot(M, method = 'circle', type = 'lower', insig='blank',
+         addCoef.col ='black', number.cex = 0.8, order = 'AOE', diag=FALSE)
+```
+
+## Chikungunya
+
+```{r}
+var.arbo2<-colnames(na_omit_new2_data)[str_detect(colnames(na_omit_new2_data),regex('^dg_|^ZK_', ignore_case = TRUE))]
+dt2<-na_omit_new2_data[,!colnames(na_omit_new2_data)%in%var.arbo2]
+```
+
+Enquanto as variáveis de saneamento e de densidade populacional se mostram mais relevantes na incidência da Chikungunya, a variável de cobertura AB se apresenta numa relação negativa. Quanto menor a cobertura, positivo são os casos. Como indicam a tabela e o mapa de calor abaixo.
+
+```{r}
+knitr::kable(cor(dt2[,!colnames(dt2)%in% var_categorica],method = "spearman"))
+```
+
+
+
+## Mapa de calor exibindo a correlação de variaveis com a Chikungunya
+
+
+```{r}
+library(corrplot)
+M <- cor(cor(dt2[,!colnames(dt2)%in% var_categorica],method = "spearman"))
+#corrplot(M, method = "color")
+```
+
+  
+
+
+```{r}
+#corrplot(M, order = "hclust", addrect = 3)
+corrplot(M, method = 'circle', type = 'lower', insig='blank',
+         addCoef.col ='black', number.cex = 0.8, order = 'AOE', diag=FALSE)
+```
+
+
+## Zika
+
+```{r}
+var.arbo1<-colnames(na_omit_new2_data)[str_detect(colnames(na_omit_new2_data),regex('^dg_|^chik_', ignore_case = TRUE))]
+#var.sel<-colnames(na_omit_new2_data)[str_detect(colnames(na_omit_new2_data),regex('^dg_', ignore_case = TRUE))]
+
+dt1<-na_omit_new2_data[,!colnames(na_omit_new2_data)%in%var.arbo1]
+```
+
+Para a Zika, a correlação de spearman evidencia que a densidade media e a variável de sanemaneto básico são as mais relevantes. O índice da Firjan se mostra com comportamento similar que o apresentado para a incidência da dengue. Vide o grafico e a tabela de calor abaixo:
+
+```{r}
+knitr::kable(cor(dt1[,!colnames(dt1)%in% var_categorica],method = "spearman"))
+```
+
+
+## Mapa de calor exibindo a correlação de variaveis com a Zika
+
+
+```{r}
+library(corrplot)
+M <- cor(cor(dt1[,!colnames(dt1)%in% var_categorica],method = "spearman"))
+#corrplot(M, method = "color")
+```
+
+
+
+  
+
+
+```{r}
+#corrplot(M, order = "hclust", addrect = 3)
+corrplot(M, method = 'circle', type = 'lower', insig='blank',
+         addCoef.col ='black', number.cex = 0.8, order = 'AOE', diag=FALSE)
+```
+
