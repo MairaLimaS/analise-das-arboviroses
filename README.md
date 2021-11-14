@@ -1,5 +1,5 @@
 # Arboviroses
-Repositório destinado a coletar dados e scripts produzidos no escopo do projeto de doutorado entitulada "A difusão das arboviroses na Bahia: estudo com aplicação do método estatístico multinível entre anos 2016 a 2019".
+Repositório destinado a coletar dados e scripts produzidos no escopo do projeto de doutorado entitulado "A difusão das arboviroses na Bahia: estudo com aplicação do método estatístico multinível entre anos 2016 a 2019".
 
 As descritivas produzidas para a análise estão em HTML e foram produzidas na seguinte ordem:
 
