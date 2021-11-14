@@ -4,6 +4,7 @@ Repositório destinado a coletar dados e scripts produzidos no escopo do projeto
 As análises estão em HTML e para visualizar o documento é necessário realizar o download do arquivo.
 
 1- Análise descritiva de casos; 
-1- Análise de dispersão e correlação. 
+
+2- Análise de dispersão e correlação. 
 
 
