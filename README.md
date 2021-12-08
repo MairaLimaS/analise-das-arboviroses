@@ -5,7 +5,7 @@ As descritivas produzidas para a análise estão em HTML e foram produzidas na s
 
 1- Análise descritiva de casos foi realizada para: 
 
-1.1 Incidência, casos e dsitribuição: https://rpubs.com/MairaLima/descritivaarbovirose_1
+1.1 Incidência, casos e distribuição: https://rpubs.com/MairaLima/descritivaarbovirose_1
 
 1.2 Perfil de casos por faixa etária, sexo, município: https://rpubs.com/MairaLima/analisedescritiva2
 
