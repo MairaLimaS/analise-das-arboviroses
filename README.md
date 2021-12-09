@@ -9,8 +9,8 @@ As descritivas produzidas para a análise estão em HTML e foram produzidas na s
 
 1.2 Perfil de casos por faixa etária, sexo, município: https://rpubs.com/MairaLima/analisedescritiva2
 
-2- Análise de dispersão e correlação: https://rpubs.com/MairaLima/analisedispersaoecorrelacao
+2- Análise de variabilidade: https://rpubs.com/MairaLima/analisevariabilidadedengue
 
-3- Análise de variabilidade: https://rpubs.com/MairaLima/analisevariabilidadedengue
+3- Análise de dispersão e correlação: https://rpubs.com/MairaLima/analisedispersaoecorrelacao
 
 
