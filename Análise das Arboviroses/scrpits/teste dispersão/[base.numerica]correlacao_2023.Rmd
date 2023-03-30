@@ -1,0 +1,117 @@
+---
+title: "Matriz de correlação - base numerica"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    toc: yes
+  html_document:
+    code_folding: hide
+    highlight: tango
+    lib_dir: libs
+    number_sections: yes
+    theme: yeti
+    toc: yes
+    toc_float:
+      collapse: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, comment = '', warning = FALSE)
+```
+
+
+```{r cars}
+
+#load the libraries so you have access to them in your workflow
+
+library("lme4")
+library("ggplot2")
+library("HLMdiag")
+#library("DHARMa")
+library("car") #for the Levene test which we will not discuss here
+library("Matrix")
+library(dplyr);library(tidyr)
+library(utils)
+library(stringr)
+library(data.table)
+library(foreign)
+require(abjutils)
+library(gridExtra)
+library(grid)
+library(kableExtra)
+```
+
+```{r}
+load("/cloud/project/binomial/bases finais/base_maira.RData")
+load("/cloud/project/binomial/bases finais/bahia_cov.RData")
+data <- base_maira%>%rename(densidade=pop)
+```
+
+```{r}
+base = data %>% 
+  inner_join(bahia_cov %>% dplyr::select(mun,IDH_2015), by = c('mun' = 'mun'))
+```
+
+
+```{r}
+
+data<-base %>% 
+  mutate(semiarido = case_when(
+    semiarido == "zona nao arida" ~ 0,
+    semiarido == " semiárido" ~ 1))%>%
+  mutate(bioma = case_when(
+    bioma == " floresta" ~ 1,
+    bioma == " natural não florestal" ~ 2,
+    bioma == " agropecuária" ~ 3,
+    bioma == " área não vegetada" ~ 4,
+    bioma == " corpos d’água" ~ 5))%>%
+  mutate(tipologia = case_when(
+    tipologia == "rural" ~ 1,
+    tipologia == "urbano" ~ 2))%>%dplyr::select(-IDH)%>%rename(IDH="IDH_2015")
+
+```
+
+ 
+
+```{r}
+#eliminasse os nulos
+na_omit_data=data[complete.cases(data),]
+
+```
+
+# Matriz de correlação pelo método spearman
+
+```{r}
+var_categorica<-c("mun","ano","populacao")
+```
+
+
+```{r}
+dt<-na_omit_data[,!colnames(na_omit_data)%in%var_categorica]
+```
+
+
+## Mapa de calor exibindo a correlação de variaveis
+
+O mapa de calor abaixo pode auxiliar na visualização desta relação:
+
+```{r}
+library(corrplot)
+M <- cor(dt[,!colnames(dt)%in% var_categorica],method = "spearman")
+#corrplot(M, method = "color")
+```
+
+
+```{r}
+library(psych)
+arbo_corr.test<-corr.test(dt[,!colnames(dt)%in% var_categorica], method = "spearman", use = "complete.obs")$p
+
+
+```
+
+
+```{r}
+corrplot(M, p.mat = arbo_corr.test, method = 'square', type = 'lower', insig='blank',number.cex = 0.8, order = 'FPC', diag=FALSE)
+```
