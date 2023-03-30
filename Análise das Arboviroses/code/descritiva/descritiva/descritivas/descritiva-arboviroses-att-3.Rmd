@@ -1,0 +1,444 @@
+---
+title: "Descritiva Arboviroses Bahia (parte 3) - Atualizado (2022)" 
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    highlight: tango
+    #number_sections: yes
+    theme: yeti
+    toc: yes
+    toc_float:
+      collapse: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, comment = '', warning = FALSE, fig.width = 20, fig.height = 12)
+```
+
+```{r include = FALSE}
+library(dplyr)
+library(tidyverse)
+library(knitr)
+library(zoo)
+library(ggplot2)
+#library(sf)
+load('fe_datasets_municipio_att.RData')
+load("fe_dataset_arboviroses_fase1.RData")
+```
+
+# Incidência de casos confirmados por classificação final
+
+```{r include=FALSE}
+#nomes_arb = list('dng' = 'Dengue', 'zk' = 'Zika', 'chik' = 'Chikungunya')
+gera_tabela_classi_fin = function(anos, base, arb){
+  
+  for(ano in anos){
+  #for (i in 1:length(bases_arb)){
+    base_arb = base %>% filter(!is.na(CLASSI_FIN) & NU_ANO == ano) %>% 
+      group_by(ID_MN_RESI, CLASSI_FIN) %>% count() %>% rename('casos' = n) %>% 
+      inner_join(aux_pop %>% select(IBGE_6, mun, paste0('pop.', ano)), by = c('ID_MN_RESI' = 'IBGE_6')) %>% 
+      rename(pop = paste0('pop.', ano))
+    
+    base_arb = base_arb %>% 
+      mutate('incidencia' = round(100000 * casos/pop, 3)) %>% 
+      select(!c(casos, pop)) %>% 
+      pivot_wider(names_from = CLASSI_FIN, values_from = incidencia, values_fill = 0, names_prefix = 'classi_fin_') %>% 
+      as.data.frame() %>% 
+      select(!c(ID_MN_RESI)) %>% 
+      rename('Município' = mun)
+
+      print(kable(base_arb, caption = paste0('Incidência de casos confirmados da ', arb, ' por município e classificação final, Bahia, ', ano)))
+      cat('\n')
+  }  
+  
+}
+
+gera_graf_classi_fin = function(anos, base, arb){
+  for(ano in anos){
+      graf_se = base %>% filter(!is.na(CLASSI_FIN) & NU_ANO == ano) %>% 
+        group_by(ID_MN_RESI, SEM_PRI_V, CLASSI_FIN) %>% count() %>% rename('casos' = n) %>% 
+        inner_join(aux_pop %>% select(IBGE_6, mun, paste0('pop.', ano)), by = c('ID_MN_RESI' = 'IBGE_6')) %>% 
+      rename(pop = paste0('pop.', ano))
+      
+      graf_se = graf_se %>% 
+        group_by(SEM_PRI_V, CLASSI_FIN) %>% 
+        summarise('casos' = sum(casos), 'populacao' = sum(pop)) %>% 
+        mutate('incidencia' = round(100000 * casos/populacao, 3))
+      
+      fig = ggplot(graf_se, aes(x = as.factor(SEM_PRI_V), y = incidencia, fill = as.factor(CLASSI_FIN))) +
+        geom_bar(stat = "identity", position = "stack") +
+        labs(title = paste0('Incidência de casos confirmados da ', arb, ' por tipo de classificação final em ', ano), y = 'Incidência', x = 'Semana Epidemiológica', fill = 'Classificação Final') +
+        scale_fill_brewer(palette = 'Set3') +
+        theme_minimal() +
+        theme(axis.text.x = element_text(size = 16), 
+                axis.title.x = element_text(size = 18),
+                axis.text.y = element_text(size = 16), 
+                axis.title.y = element_text(size = 18),
+                legend.text = element_text(size = 16),
+                title = element_text(size = 18))
+      print(fig)
+      cat('\n\n')
+      
+      graf_mes = base %>% filter(!is.na(CLASSI_FIN) & NU_ANO == ano) %>% 
+        group_by(ID_MN_RESI, DT_NOTIFIC, CLASSI_FIN) %>% count() %>% rename('casos' = n) %>% 
+        inner_join(aux_pop %>% select(IBGE_6, mun, paste0('pop.', ano)), by = c('ID_MN_RESI' = 'IBGE_6')) %>% 
+      rename(pop = paste0('pop.', ano))
+      
+      graf_mes = graf_mes %>% mutate('DT_NOTIFIC' = months(as.Date(DT_NOTIFIC), abbreviate = TRUE)) %>% 
+        group_by(DT_NOTIFIC, CLASSI_FIN) %>% summarise('casos' = sum(casos), 
+                                                        'populacao' = sum(pop))
+        
+      graf_mes = graf_mes %>% mutate('incidencia' = round(100000 * casos/populacao, 3),
+                                     'DT_NOTIFIC' = factor(DT_NOTIFIC, levels = c('jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez')))
+      
+      fig = ggplot(graf_mes, aes(x = DT_NOTIFIC, y = incidencia, fill = as.factor(CLASSI_FIN))) +
+        geom_bar(stat = "identity", position = "stack") +
+        labs(title = paste0('Incidência de casos confirmados da ', arb, ' por mês e tipo de classificação final em ', ano), y = 'Incidência', x = 'Mês', fill = 'Classificação Final') +
+        scale_fill_brewer(palette = 'Set3') +
+        scale_x_discrete(limits = ) +
+        theme_minimal() +
+        theme(axis.text.x = element_text(size = 16), 
+                axis.title.x = element_text(size = 18),
+                axis.text.y = element_text(size = 16), 
+                axis.title.y = element_text(size = 18),
+                legend.text = element_text(size = 16),
+                title = element_text(size = 18))
+        print(fig)
+        cat('\n\n')
+#  }
+  }  
+}
+```
+
+## Dengue
+
+### Tabela
+
+```{r results='asis'}
+#anos = sort(unique(unique(dng$NU_ANO), unique(zk$NU_ANO), unique(chik$NU_ANO)))
+anos = 2016:2019
+gera_tabela_classi_fin(anos, fe_dengue_conf, 'Dengue')
+```
+
+### Gráfico
+
+```{r results='asis'}
+gera_graf_classi_fin(anos, fe_dengue_conf, 'Dengue')
+```
+
+## Zika
+
+### Tabela
+
+```{r results='asis'}
+#gera_tabela_classi_fin(anos, zk, 'zk')
+gera_tabela_classi_fin(anos, fe_zika_conf, 'Zika')
+```
+
+### Gráfico
+
+```{r results='asis'}
+gera_graf_classi_fin(anos, fe_zika_conf, 'zk')
+```
+
+## Chikungunya
+
+### Tabela
+
+```{r results='asis'}
+gera_tabela_classi_fin(anos, fe_chik_conf, 'Chikungunya')
+```
+
+### Gráfico
+
+```{r results='asis'}
+#gera_graf_classi_fin(anos, chik, 'chik')
+gera_graf_classi_fin(anos, fe_chik_conf, 'Chikungunya')
+```
+
+# Incidência de casos confirmados por faixa etária
+
+```{r include=FALSE}
+fe_dengue_conf = fe_dengue_conf %>% mutate(IDADE = case_when(
+                               IDADE %in% 0:10 ~ "0 a 10",
+                               IDADE %in% 11:20 ~ "11 a 20", 
+                               IDADE %in% 21:30 ~ "21 a 30",
+                               IDADE %in% 31:40 ~ "31 a 40",
+                               IDADE %in% 41:50 ~ "41 a 50",
+                               IDADE %in% 51:60 ~ "51 a 60",
+                               IDADE %in% 61:70 ~ "61 a 70",
+                               IDADE %in% 71:80 ~ "71 a 80",
+                               IDADE %in% 81:90 ~ "81 a 90",
+                               IDADE %in% 91:100 ~ "91 a 100"))
+
+fe_zika_conf = fe_zika_conf %>% mutate(IDADE = case_when(
+                               IDADE %in% 0:10 ~ "0 a 10",
+                               IDADE %in% 11:20 ~ "11 a 20", 
+                               IDADE %in% 21:30 ~ "21 a 30",
+                               IDADE %in% 31:40 ~ "31 a 40",
+                               IDADE %in% 41:50 ~ "41 a 50",
+                               IDADE %in% 51:60 ~ "51 a 60",
+                               IDADE %in% 61:70 ~ "61 a 70",
+                               IDADE %in% 71:80 ~ "71 a 80",
+                               IDADE %in% 81:90 ~ "81 a 90",
+                               IDADE %in% 91:100 ~ "91 a 100"))
+
+fe_chik_conf = fe_chik_conf %>% mutate(IDADE = case_when(
+                               IDADE %in% 0:10 ~ "0 a 10",
+                               IDADE %in% 11:20 ~ "11 a 20", 
+                               IDADE %in% 21:30 ~ "21 a 30",
+                               IDADE %in% 31:40 ~ "31 a 40",
+                               IDADE %in% 41:50 ~ "41 a 50",
+                               IDADE %in% 51:60 ~ "51 a 60",
+                               IDADE %in% 61:70 ~ "61 a 70",
+                               IDADE %in% 71:80 ~ "71 a 80",
+                               IDADE %in% 81:90 ~ "81 a 90",
+                               IDADE %in% 91:100 ~ "91 a 100"))
+```
+
+
+```{r include=FALSE}
+gera_tabela_idade = function(anos, base, arb){
+  
+  for(ano in anos){
+    base_arb = base %>% filter(!is.na(IDADE) & NU_ANO == ano) %>% 
+      group_by(ID_MN_RESI, IDADE) %>% count() %>% rename('casos' = n) %>% 
+      inner_join(aux_pop %>% select(IBGE_6, mun, paste0('pop.', ano)), by = c('ID_MN_RESI' = 'IBGE_6')) %>% 
+      rename(pop = paste0('pop.', ano))
+    
+    base_arb = base_arb %>% 
+      mutate('incidencia' = round(100000 * casos/pop, 3)) %>% 
+      select(!c(casos, pop)) %>% 
+      pivot_wider(names_from = IDADE, values_from = incidencia, values_fill = 0) %>% 
+      as.data.frame() %>% 
+      select(!c(ID_MN_RESI)) %>% 
+      rename('Município' = mun)
+    
+      print(kable(base_arb %>% select(sort(colnames(base_arb))) %>% relocate('Município'), caption = paste0('Incidência de casos confirmados da ', arb, ' por município e faixa etária, Bahia, ', ano)))
+      cat('\n')
+  }  
+  
+}
+gera_graf_idade = function(anos, base, arb){
+  for(ano in anos){
+      graf_se = base %>% filter(!is.na(IDADE) & NU_ANO == ano) %>% 
+        group_by(ID_MN_RESI, SEM_PRI_V, IDADE) %>% count() %>% rename('casos' = n) %>% 
+        inner_join(aux_pop %>% select(IBGE_6, mun, paste0('pop.', ano)), by = c('ID_MN_RESI' = 'IBGE_6')) %>% 
+      rename(pop = paste0('pop.', ano))
+      
+      graf_se = graf_se %>% 
+        group_by(SEM_PRI_V, IDADE) %>% summarise('casos' = sum(casos), 'populacao' = sum(pop)) %>% 
+        mutate('incidencia' = round(100000 * casos/populacao, 3))
+      
+      fig = ggplot(graf_se, aes(x = as.factor(SEM_PRI_V), y = incidencia, fill = as.factor(IDADE))) +
+        geom_bar(stat = "identity", position = "stack") +
+        labs(title = paste0('Incidência de casos confirmados da ', arb, ' por faixa etária em ', ano), y = 'Incidência', x = 'Semana Epidemiológica', fill = 'Faixa etária') +
+        scale_fill_brewer(palette = 'Paired') +
+        #scale_fill_manual(breaks = c('F', 'I', 'M'), values = c('Tomato', 'gray', 'DodgerBlue'), labels = c('Feminino', 'Ignorado', 'Masculino')) +
+        theme_minimal() +
+        theme(axis.text.x = element_text(size = 16), 
+                axis.title.x = element_text(size = 18),
+                axis.text.y = element_text(size = 16), 
+                axis.title.y = element_text(size = 18),
+                legend.text = element_text(size = 16),
+                title = element_text(size = 18))
+      print(fig)
+      cat('\n\n')
+      
+      graf_mes = base %>% filter(!is.na(IDADE) & NU_ANO == ano) %>% 
+        group_by(ID_MN_RESI, DT_NOTIFIC, IDADE) %>% count() %>% rename('casos' = n) %>% 
+        inner_join(aux_pop %>% select(IBGE_6, mun, paste0('pop.', ano)), by = c('ID_MN_RESI' = 'IBGE_6')) %>% 
+      rename(pop = paste0('pop.', ano))
+
+      graf_mes = graf_mes %>% 
+        mutate('DT_NOTIFIC' = months(as.Date(DT_NOTIFIC), abbreviate = TRUE)) %>% 
+        group_by(DT_NOTIFIC, IDADE) %>% summarise('casos' = sum(casos), 
+                                                        'populacao' = sum(pop)) %>% 
+        mutate('incidencia' = round(100000 * casos/populacao, 3),
+                                     'DT_NOTIFIC' = factor(DT_NOTIFIC, levels = c('jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez')))
+      
+      fig = ggplot(graf_mes, aes(x = DT_NOTIFIC, y = incidencia, fill = as.factor(IDADE))) +
+        geom_bar(stat = "identity", position = "stack") +
+        labs(title = paste0('Incidência de casos confirmados da ', arb, ' por mês e faixa etária em ', ano), y = 'Incidência', x = 'Mês', fill = 'Faixa etária') +
+        scale_fill_brewer(palette = 'Paired') +
+        #scale_fill_manual(breaks = c('F', 'I', 'M'), values = c('Tomato', 'gray', 'DodgerBlue'), labels = c('Feminino', 'Ignorado', 'Masculino')) +
+        scale_x_discrete(limits = ) +
+        theme_minimal() +
+        theme(axis.text.x = element_text(size = 16), 
+                axis.title.x = element_text(size = 18),
+                axis.text.y = element_text(size = 16), 
+                axis.title.y = element_text(size = 18),
+                legend.text = element_text(size = 16),
+                title = element_text(size = 18))
+        print(fig)
+        cat('\n\n')
+#  }
+  }  
+}
+```
+
+## Dengue
+
+### Tabela
+
+```{r results='asis'}
+gera_tabela_idade(anos, fe_dengue_conf, 'Dengue')
+```
+
+### Gráfico
+
+```{r results='asis'}
+gera_graf_idade(anos, fe_dengue_conf, 'Dengue')
+```
+
+## Zika
+
+### Tabela
+
+```{r results='asis'}
+gera_tabela_idade(anos, fe_zika_conf, 'Zika')
+```
+
+### Gráfico
+
+```{r results='asis'}
+gera_graf_idade(anos, fe_zika_conf, 'Zika')
+```
+
+## Chikungunya
+
+### Tabela
+
+```{r results='asis'}
+gera_tabela_idade(anos, fe_chik_conf, 'Chikungunya')
+```
+
+### Gráfico
+
+```{r results='asis'}
+gera_graf_idade(anos, fe_chik_conf, 'Chikungunya')
+```
+
+# Incidência de casos confirmados por sexo
+
+```{r include=FALSE}
+gera_tabela_sexo = function(anos, base, arb){
+  
+  for(ano in anos){
+    base_arb = base %>% filter(!is.na(CS_SEXO) & NU_ANO == ano) %>% 
+      group_by(ID_MN_RESI, CS_SEXO) %>% count() %>% rename('casos' = n) %>% 
+      inner_join(aux_pop %>% select(IBGE_6, mun, paste0('pop.', ano)), by = c('ID_MN_RESI' = 'IBGE_6')) %>% 
+      rename(pop = paste0('pop.', ano))
+    
+    base_arb = base_arb %>% 
+      mutate('incidencia' = round(100000 * casos/pop, 3)) %>% 
+      select(!c(casos, pop)) %>% 
+      pivot_wider(names_from = CS_SEXO, values_from = incidencia, values_fill = 0) %>% 
+      as.data.frame() %>% 
+      select(!c(ID_MN_RESI)) %>% 
+      rename('Município' = mun)
+      print(kable(base_arb, caption = paste0('Incidência de casos confirmados da ', arb, ' por município e sexo, Bahia, ', ano)))
+      cat('\n')
+  }  
+  
+}
+gera_graf_sexo = function(anos, base, arb){
+  for(ano in anos){
+      graf_se = base %>% filter(!is.na(CS_SEXO) & NU_ANO == ano) %>%
+        group_by(ID_MN_RESI, SEM_PRI_V, CS_SEXO) %>% count() %>% rename('casos' = n) %>% 
+        inner_join(aux_pop %>% select(IBGE_6, mun, paste0('pop.', ano)), by = c('ID_MN_RESI' = 'IBGE_6')) %>% 
+      rename(pop = paste0('pop.', ano))
+      
+      graf_se = graf_se %>% 
+        group_by(SEM_PRI_V, CS_SEXO) %>% summarise('casos' = sum(casos), 'populacao' = sum(pop)) %>% 
+        mutate('incidencia' = round(100000 * casos/populacao, 3))
+      
+      fig = ggplot(graf_se, aes(x = as.factor(SEM_PRI_V), y = incidencia, fill = as.factor(CS_SEXO))) +
+        geom_bar(stat = "identity", position = "stack") +
+        labs(title = paste0('Incidência de casos confirmados da ', arb, ' por sexo em ', ano), y = 'Incidência', x = 'Semana Epidemiológica', fill = 'Sexo') +
+        #scale_fill_brewer(palette = 'Set2') +
+        scale_fill_manual(breaks = c('F', 'I', 'M'), values = c('Tomato', 'gray', 'DodgerBlue'), labels = c('Feminino', 'Ignorado', 'Masculino')) +
+        theme_minimal() +
+        theme(axis.text.x = element_text(size = 16), 
+                axis.title.x = element_text(size = 18),
+                axis.text.y = element_text(size = 16), 
+                axis.title.y = element_text(size = 18),
+                legend.text = element_text(size = 16),
+                title = element_text(size = 18))
+      print(fig)
+      cat('\n\n')
+      
+      graf_mes = base %>% filter(!is.na(CS_SEXO) & NU_ANO == ano) %>% 
+        group_by(ID_MN_RESI, DT_NOTIFIC, CS_SEXO) %>% count() %>% rename('casos' = n) %>% 
+        inner_join(aux_pop %>% select(IBGE_6, mun, paste0('pop.', ano)), by = c('ID_MN_RESI' = 'IBGE_6')) %>% 
+      rename(pop = paste0('pop.', ano))
+    
+      graf_mes = graf_mes %>% 
+        mutate('DT_NOTIFIC' = months(as.Date(DT_NOTIFIC), abbreviate = TRUE)) %>% 
+        group_by(DT_NOTIFIC, CS_SEXO) %>% summarise('casos' = sum(casos), 
+                                                        'populacao' = sum(pop)) %>% 
+        mutate('incidencia' = round(100000 * casos/populacao, 3),
+                                     'DT_NOTIFIC' = factor(DT_NOTIFIC, levels = c('jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez')))
+      
+      fig = ggplot(graf_mes, aes(x = DT_NOTIFIC, y = incidencia, fill = as.factor(CS_SEXO))) +
+        geom_bar(stat = "identity", position = "stack") +
+        labs(title = paste0('Incidência de casos confirmados da ', arb, ' por mês e sexo em ', ano), y = 'Incidência', x = 'Mês', fill = 'Sexo') +
+        #scale_fill_brewer(palette = 'Set3') +
+        scale_fill_manual(breaks = c('F', 'I', 'M'), values = c('Tomato', 'gray', 'DodgerBlue'), labels = c('Feminino', 'Ignorado', 'Masculino')) +
+        scale_x_discrete(limits = ) +
+        theme_minimal() +
+        theme(axis.text.x = element_text(size = 16), 
+                axis.title.x = element_text(size = 18),
+                axis.text.y = element_text(size = 16), 
+                axis.title.y = element_text(size = 18),
+                legend.text = element_text(size = 16),
+                title = element_text(size = 18))
+        print(fig)
+        cat('\n\n')
+#  }
+  }  
+}
+```
+
+## Dengue
+
+### Tabela
+
+```{r results='asis'}
+#anos = sort(unique(unique(dng$NU_ANO), unique(zk$NU_ANO), unique(chik$NU_ANO)))
+gera_tabela_sexo(anos, fe_dengue_conf, 'Dengue')
+```
+
+### Gráfico
+
+```{r results='asis'}
+gera_graf_sexo(2016:2017, fe_dengue_conf, 'Dengue')
+```
+
+## Zika
+
+### Tabela
+
+```{r results='asis'}
+gera_tabela_sexo(anos, fe_zika_conf, 'Zika')
+```
+
+### Gráfico
+
+```{r results='asis'}
+gera_graf_sexo(anos, fe_zika_conf, 'Zika')
+```
+
+## Chikungunya
+
+### Tabela
+
+```{r results='asis'}
+gera_tabela_sexo(anos, fe_chik_conf, 'Chikungunya')
+```
+
+### Gráfico
+
+```{r results='asis'}
+gera_graf_sexo(anos, fe_chik_conf, 'Chikungunya')
+```

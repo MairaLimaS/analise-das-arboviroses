@@ -1,0 +1,214 @@
+---
+title: "Gráficos de dispersão"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    highlight: tango
+    lib_dir: libs
+    number_sections: yes
+    theme: yeti
+    toc: yes
+    toc_float:
+      collapse: yes
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, comment = '', warning = FALSE)
+```
+
+
+```{r cars}
+
+#load the libraries so you have access to them in your workflow
+
+library("lme4")
+library("ggplot2")
+library("HLMdiag")
+#library("DHARMa")
+library("car") #for the Levene test which we will not discuss here
+library("Matrix")
+library(dplyr);library(tidyr)
+library(utils)
+library(stringr)
+library(data.table)
+library(foreign)
+require(abjutils)
+library(gridExtra)
+library(grid)
+library(kableExtra)
+```
+
+```{r}
+load("/cloud/project/binomial/bases finais/base_maira.RData")
+data <- base_maira%>%rename(densidade=pop)
+```
+
+```{r}
+#eliminasse os nulos
+na_omit_data=data[complete.cases(data),]
+
+```
+
+
+```{r}
+na_omit_data_v1<-na_omit_data%>%
+dplyr::select(mun,ano,dg_conf,chik_conf,zika_conf,chik_conf, dg_susp,chik_susp,zika_susp,PIB_percapita,
+              densidade,tx_G12A,tx_dg_auto,tx_chik_auto,tx_zk_auto,tx_vacina,tx_fluxo,tx_cadunico_tot_pes_pob_ext,tx_Ssnis)%>%
+ group_by(mun)%>%  
+ dplyr::summarise_at(c("dg_conf","chik_conf","zika_conf","chik_conf", "dg_susp","chik_susp","zika_susp","PIB_percapita",
+"densidade","tx_G12A","tx_dg_auto","tx_chik_auto","tx_zk_auto","tx_vacina","tx_fluxo","tx_cadunico_tot_pes_pob_ext","tx_Ssnis"), sum, na.rm = TRUE)
+
+```
+
+# Dengue
+
+```{r}
+var.incid<-colnames(na_omit_data_v1)[str_detect(colnames(na_omit_data_v1),regex('^dg_conf', ignore_case = TRUE))]
+
+library(magrittr)
+library(ggplot2)
+
+var_interess<-c("densidade","PIB_percapita","tx_G12A","tx_Ssnis","tx_fluxo","tx_cadunico_tot_pes_pob_ext","tx_dg_auto","tx_chik_auto", "tx_zk_auto")
+var_categorica<-c("semiarido","IDH","tipologia","bioma","ano")
+
+
+for (cat in var_interess){
+
+#for (cat in var_interess[1]){  
+  nome<-ifelse(cat=="densidade", "Densidade Período",
+               ifelse(cat=="PIB_percapita", "PIB percapita",
+                      ifelse(cat=="tx_cadunico_tot_pes_pob_ext", "Pobres inscritos Cadastro Unico",
+                             ifelse(cat=="tx_G12A", "População com Abastecimento de Água",
+                                    ifelse(cat=="tx_Ssnis", "População sem Esgotamento Sanitário",
+                                           ifelse(cat=="tx_dg_auto", "Taxa de casos autoctones dengue",
+                                            ifelse(cat=="tx_chik_auto", "Taxa de casos autoctones chikungunya",
+                                            ifelse(cat=="tx_zk_auto", "Taxa de casos autoctones zika",       
+                                            ifelse(cat=="tx_fluxo", "Taxa de fluxo", cat)))))))))
+               
+  for (var in var.incid){ 
+  
+#  ano<-substr(var, start = 10, stop = 13)
+  p2<-ggplot(na_omit_data_v1, aes_string(x=cat, y=var)) +
+  geom_point(shape = 17, size = 3) +
+  geom_smooth(method = "lm", color="red", se=TRUE) + 
+#  ggtitle(paste0("Dengue",ano," por ",nome))+
+  ggtitle(paste0("Dengue por ",nome))+  
+#  theme(plot.title = element_text(hjust = 0.5))+
+  xlab(nome)+ 
+#  ylab(paste0("Casos de dengue ",ano)) 
+    ylab(paste0("Casos de dengue "))   
+  print(p2)
+  
+#  p2
+  cat('\n\n')
+}
+
+
+}
+
+
+```
+
+# Chikungunya
+
+```{r}
+var.incid<-colnames(na_omit_data_v1)[str_detect(colnames(na_omit_data_v1),regex('^chik_conf', ignore_case = TRUE))]
+
+library(magrittr)
+library(ggplot2)
+
+var_interess<-c("densidade","PIB_percapita","tx_G12A","tx_Ssnis","tx_fluxo","tx_cadunico_tot_pes_pob_ext","tx_dg_auto","tx_chik_auto", "tx_zk_auto")
+var_categorica<-c("semiarido","IDH","tipologia","bioma","ano", "populacao")
+
+
+
+for (cat in var_interess){
+#for (cat in var_interess[1]){  
+  nome<-ifelse(cat=="densidade", "Densidade Período",
+               ifelse(cat=="PIB_percapita", "PIB percapita",
+                      ifelse(cat=="tx_cadunico_tot_pes_pob_ext", "Pobres inscritos Cadastro Unico",
+                             ifelse(cat=="tx_G12A", "População com Abastecimento de Água",
+                                    ifelse(cat=="tx_Ssnis", "População sem Esgotamento Sanitário",
+                                           ifelse(cat=="tx_dg_auto", "Taxa de casos autoctones de dengue",
+                                            ifelse(cat=="tx_chik_auto", "Taxa de casos autoctones de chikungunya",
+                                            ifelse(cat=="tx_zk_auto", "Taxa de casos autoctones de zika",       
+                                            ifelse(cat=="tx_fluxo", "Taxa de fluxo", cat)))))))))
+               
+  for (var in var.incid){ 
+  
+#  ano<-substr(var, start = 10, stop = 13)
+  p2<-ggplot(na_omit_data_v1, aes_string(x=cat, y=var)) +
+  geom_point(shape = 17, size = 3) +
+  geom_smooth(method = "lm", color="red", se=TRUE) + 
+#  ggtitle(paste0("Chikungunya",ano," por ",nome))+
+    ggtitle(paste0("Chikungunya por ",nome))+  
+#  theme(plot.title = element_text(hjust = 0.5))+
+  xlab(nome)+ 
+#  ylab(paste0("Casos de chikungunya ",ano)) 
+    ylab(paste0("Casos de chikungunya"))   
+  print(p2)
+  
+#  p2
+  cat('\n\n')
+}
+
+
+}
+
+
+```
+
+# Zika
+
+```{r}
+var.incid<-colnames(na_omit_data_v1)[str_detect(colnames(na_omit_data_v1),regex('^zika_conf', ignore_case = TRUE))]
+
+library(magrittr)
+library(ggplot2)
+
+var_interess<-c("densidade","PIB_percapita","tx_G12A","tx_Ssnis","tx_fluxo","tx_cadunico_tot_pes_pob_ext","tx_dg_auto","tx_chik_auto", "tx_zk_auto")
+var_categorica<-c("semiarido","IDH","tipologia","bioma","ano")
+
+
+
+for (cat in var_interess){
+#for (cat in var_interess[1]){  
+  nome<-ifelse(cat=="densidade", "Densidade Período",
+               ifelse(cat=="PIB_percapita", "PIB percapita",
+                      ifelse(cat=="tx_cadunico_tot_pes_pob_ext", "Pobres inscritos Cadastro Unico",
+                             ifelse(cat=="tx_G12A", "População com Abastecimento de Água",
+                                    ifelse(cat=="tx_Ssnis", "População sem Esgotamento Sanitário",
+                                           ifelse(cat=="tx_dg_auto", "Taxa de casos autoctones de dengue",
+                                            ifelse(cat=="tx_chik_auto", "Taxa de casos autoctones de chikungunya",
+                                            ifelse(cat=="tx_zk_auto", "Taxa de casos autoctones de zika",       
+                                            ifelse(cat=="tx_fluxo", "Taxa de fluxo", cat)))))))))
+               
+  for (var in var.incid){ 
+  
+#  ano<-substr(var, start = 10, stop = 13)
+  p2<-ggplot(na_omit_data_v1, aes_string(x=cat, y=var)) +
+  geom_point(shape = 17, size = 3) +
+  geom_smooth(method = "lm", color="red", se=TRUE) + 
+#  ggtitle(paste0("Zika",ano," por ",nome))+
+  ggtitle(paste0("Zika por ",nome))+  
+#  theme(plot.title = element_text(hjust = 0.5))+
+  xlab(nome)+ 
+#  ylab(paste0("Casos de zika ",ano)) 
+    ylab(paste0("Casos de zika"))   
+  print(p2)
+  
+#  p2
+  cat('\n\n')
+}
+
+
+}
+
+
+```
+

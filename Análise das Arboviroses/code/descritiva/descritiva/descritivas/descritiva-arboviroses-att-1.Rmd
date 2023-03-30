@@ -1,0 +1,596 @@
+---
+title: "Descritiva Arboviroses Bahia (parte 1) - Atualizado (2022)"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    toc: yes
+  html_document:
+    highlight: tango
+    theme: yeti
+    toc: yes
+    toc_float:
+      collapse: yes
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, comment = '', warning = FALSE, fig.width = 20, fig.height = 12)
+```
+
+```{r include = FALSE}
+library(dplyr)
+library(tidyverse)
+library(knitr)
+library(zoo)
+library(ggplot2)
+#load("~/Descritiva_arbovirose_qualificacao/Arboviroses/dados/arboviroses.Rdata")
+#load("~/Descritiva_arbovirose_qualificacao/Municipios/dados/municipios_ba.RData")
+load('/cloud/project/fe_datasets_municipio_att.RData')
+load("/cloud/project/fe_dataset_arboviroses_fase1.RData")
+```
+
+# Incidência de arboviroses (casos confirmados) por ano
+
+## Dengue
+
+```{r }
+incid_dengue = aux_pop %>% 
+  select(mun, dg_incid_conf_2016:dg_incid_conf_2019) %>% 
+  rename('Município' = 'mun', '2016' = 'dg_incid_conf_2016', 
+         '2017' = 'dg_incid_conf_2017', '2018' = 'dg_incid_conf_2018', 
+         '2019' = 'dg_incid_conf_2019') 
+incid_dengue[is.na(incid_dengue)] = 0
+incid_dengue %>%
+  kable(caption = 'Incidência da Dengue por Município')
+```
+
+## Zika
+
+```{r }
+incid_zika = aux_pop %>% 
+  select(mun, zk_incid_conf_2016:zk_incid_conf_2019) %>% 
+  rename('Município' = 'mun', '2016' = 'zk_incid_conf_2016', 
+         '2017' = 'zk_incid_conf_2017', '2018' = 'zk_incid_conf_2018', 
+         '2019' = 'zk_incid_conf_2019')
+incid_zika[is.na(incid_zika)] = 0
+incid_zika %>% 
+  kable(caption = 'Incidência da Zika por Município')
+```
+
+## Chikungunya
+
+```{r }
+incid_chik = aux_pop %>% 
+  select(mun, chik_incid_conf_2016:chik_incid_conf_2019) %>% 
+  rename('Município' = 'mun', '2016' = 'chik_incid_conf_2016', 
+         '2017' = 'chik_incid_conf_2017', '2018' = 'chik_incid_conf_2018', 
+         '2019' = 'chik_incid_conf_2019')
+incid_chik[is.na(incid_chik)] = 0
+incid_chik %>% 
+  kable(caption = 'Incidência da Chikungunya por Município')
+```
+
+## Gráfico da incidência de casos confirmados
+
+```{r include = FALSE}
+# incid_arboviroses_ano = casos_pop_arb$dng %>% group_by(NU_ANO) %>% summarise('casos_total' = sum(casos), 'populacao' = sum(populacao)) %>% mutate('incidencia_dengue' = 100000 * casos_total/populacao) %>% 
+#   select(!c(casos_total, populacao))
+
+populacao_anos = rowSums(aux_pop %>% select(pop.2016:pop.2019)) %>% sum()
+
+incid_arboviroses_ano = fe_dengue_conf_muni %>% group_by(NU_ANO) %>% 
+  summarise(casos_total_dg = sum(casos_dengue)) %>% 
+  mutate(incidencia_dengue = 100000 * casos_total_dg/populacao_anos)
+
+incid_arboviroses_ano = incid_arboviroses_ano %>% 
+  inner_join(fe_zika_conf_muni %>% group_by(NU_ANO) %>% 
+  summarise(casos_total_zk = sum(casos_zika)) %>% 
+  mutate(incidencia_zika = 100000 * casos_total_zk/populacao_anos))
+                              
+incid_arboviroses_ano = incid_arboviroses_ano %>% 
+  inner_join(fe_chik_conf_muni %>% group_by(NU_ANO) %>% 
+  summarise(casos_total_chik = sum(casos_chik)) %>% 
+  mutate(incidencia_chik = 100000 * casos_total_chik/populacao_anos))                      
+
+```
+
+```{r}
+incid_arboviroses_ano %>% pivot_longer(cols = !c(NU_ANO, casos_total_dg, casos_total_zk, casos_total_chik), names_to = 'variavel', 
+                                       values_to = 'metrica') %>% 
+ggplot(aes(x = NU_ANO, y = metrica)) +
+  geom_line(aes(color = variavel), size = 1) +
+  labs(title = 'Incidência das arboviroses por ano', y = 'Incidência', x = 'Ano', col = 'Arbovirose') +
+  scale_color_manual(labels = c("Chikungunya", "Dengue", 'Zika'), values = c('black', "blue", "red")) +
+  theme_minimal() +
+    theme(axis.text.x = element_text(size = 16), 
+        axis.title.x = element_text(size = 18),
+        axis.text.y = element_text(size = 16), 
+        axis.title.y = element_text(size = 18),
+        legend.text = element_text(size = 16),
+        title = element_text(size = 18))
+
+```
+
+# Incidência de arboviroses (casos confirmados) por mês/ano
+
+## Dengue
+
+```{r results='asis'}
+#anos = sort(unique(dng$NU_ANO))
+
+for (ano in 2016:2019){
+  incid_municip_mes_ano_dengue = fe_dengue_conf %>% filter(NU_ANO == ano)
+  
+  incid_municip_mes_ano_dengue = incid_municip_mes_ano_dengue %>% 
+    mutate(DT_NOTIFIC = as.Date(DT_NOTIFIC)) %>% 
+    mutate(mes_ano = format(DT_NOTIFIC, "%m/%Y")) %>% 
+    group_by(mes_ano, ID_MN_RESI) %>% count() %>% rename('casos_dengue' = n)
+  
+  incid_municip_mes_ano_dengue = incid_municip_mes_ano_dengue %>% 
+    inner_join(aux_pop %>% select(IBGE_6, mun, paste0('pop.', ano)), by = c('ID_MN_RESI' = 'IBGE_6')) %>% 
+    rename(pop = paste0('pop.', ano))
+  
+  # incid_municip_mes_ano_dengue = casos_pop_arb$dng %>% as.data.frame() %>% 
+  #   select(!casos) %>% filter(NU_ANO == ano) %>% 
+  #   full_join(incid_municip_mes_ano_dengue, by = c('ID_MN_RESI'))
+  
+  #if(ano == 2016)
+  if(exists('graf_municip_mes_ano_dengue')){
+    graf_municip_mes_ano_dengue = rbind(graf_municip_mes_ano_dengue, incid_municip_mes_ano_dengue)
+  }else{
+    graf_municip_mes_ano_dengue = incid_municip_mes_ano_dengue
+  }
+  
+  incid_municip_mes_ano_dengue = incid_municip_mes_ano_dengue %>%
+                              arrange(mes_ano) %>% 
+                              mutate('incidencia' = round(100000 * casos_dengue/pop, 3))
+  
+  incid_municip_mes_ano_dengue = incid_municip_mes_ano_dengue %>% 
+    select(!casos_dengue) %>% 
+    pivot_wider(names_from = mes_ano, values_from = incidencia, values_fill = 0) %>% 
+    arrange(mun) %>% 
+    rename('Município' = mun) %>% 
+    as.data.frame() %>% 
+    select(!c(ID_MN_RESI, pop))
+    
+  print(kable(incid_municip_mes_ano_dengue, caption = paste0('Incidência da Dengue por Município e mês em ', ano)))
+  cat("\n")
+}  
+```
+
+## Zika
+
+```{r results='asis'}
+for (ano in 2016:2019){
+  incid_municip_mes_ano_zika = fe_zika_conf %>% filter(NU_ANO == ano)
+  
+  incid_municip_mes_ano_zika = incid_municip_mes_ano_zika %>% 
+    mutate(DT_NOTIFIC = as.Date(DT_NOTIFIC)) %>% 
+    mutate(mes_ano = format(DT_NOTIFIC, "%m/%Y")) %>% 
+    group_by(mes_ano, ID_MN_RESI) %>% count() %>% rename('casos_zika' = n)
+  
+  incid_municip_mes_ano_zika = incid_municip_mes_ano_zika %>% 
+    inner_join(aux_pop %>% select(IBGE_6, mun, paste0('pop.', ano)), by = c('ID_MN_RESI' = 'IBGE_6')) %>% 
+    rename(pop = paste0('pop.', ano))
+  
+  if(exists('graf_municip_mes_ano_zika')){
+    graf_municip_mes_ano_zika = rbind(graf_municip_mes_ano_zika, incid_municip_mes_ano_zika)
+  }else{
+    graf_municip_mes_ano_zika = incid_municip_mes_ano_zika
+  }
+  
+  incid_municip_mes_ano_zika = incid_municip_mes_ano_zika %>%
+                              arrange(mes_ano) %>% 
+                              mutate('incidencia' = round(100000 * casos_zika/pop, 3))
+  
+  incid_municip_mes_ano_zika = incid_municip_mes_ano_zika %>% 
+    select(!casos_zika) %>% 
+    pivot_wider(names_from = mes_ano, values_from = incidencia, values_fill = 0) %>% 
+    arrange(mun) %>% 
+    rename('Município' = mun) %>% 
+    as.data.frame() %>% 
+    select(!c(ID_MN_RESI, pop))
+    
+  print(kable(incid_municip_mes_ano_zika, caption = paste0('Incidência da zika por Município e mês em ', ano)))
+  cat("\n")
+}  
+```
+
+## Chikungunya
+
+```{r results='asis'}
+for (ano in 2016:2019){
+  incid_municip_mes_ano_chik = fe_chik_conf %>% filter(NU_ANO == ano)
+  
+  incid_municip_mes_ano_chik = incid_municip_mes_ano_chik %>% 
+    mutate(DT_NOTIFIC = as.Date(DT_NOTIFIC)) %>% 
+    mutate(mes_ano = format(DT_NOTIFIC, "%m/%Y")) %>% 
+    group_by(mes_ano, ID_MN_RESI) %>% count() %>% rename('casos_chik' = n)
+  
+  incid_municip_mes_ano_chik = incid_municip_mes_ano_chik %>% 
+    inner_join(aux_pop %>% select(IBGE_6, mun, paste0('pop.', ano)), by = c('ID_MN_RESI' = 'IBGE_6')) %>% 
+    rename(pop = paste0('pop.', ano))
+  
+  if(exists('graf_municip_mes_ano_chik')){
+    graf_municip_mes_ano_chik = rbind(graf_municip_mes_ano_chik, incid_municip_mes_ano_chik)
+  }else{
+    graf_municip_mes_ano_chik = incid_municip_mes_ano_chik
+  }
+  
+  incid_municip_mes_ano_chik = incid_municip_mes_ano_chik %>%
+                              arrange(mes_ano) %>% 
+                              mutate('incidencia' = round(100000 * casos_chik/pop, 3))
+  
+  incid_municip_mes_ano_chik = incid_municip_mes_ano_chik %>% 
+    select(!casos_chik) %>% 
+    pivot_wider(names_from = mes_ano, values_from = incidencia, values_fill = 0) %>% 
+    arrange(mun) %>% 
+    rename('Município' = mun) %>% 
+    as.data.frame() %>% 
+    select(!c(ID_MN_RESI, pop))
+    
+  print(kable(incid_municip_mes_ano_chik, caption = paste0('Incidência da chik por Município e mês em ', ano)))
+  cat("\n")
+}  
+```
+
+## Gráfico da incidência de casos confirmados por mês/ano
+
+```{r include=FALSE}
+graf_incid_municip_mes_ano = 
+  graf_municip_mes_ano_dengue %>% group_by(mes_ano) %>% summarise('casos' = sum(casos_dengue),
+                                                          'populacao' = sum(pop)) %>% 
+                              mutate(incidencia_dengue = 100000 * casos/populacao) %>% 
+                              select(!c(populacao, casos))
+
+graf_incid_municip_mes_ano = full_join(graf_incid_municip_mes_ano, graf_municip_mes_ano_zika %>% group_by(mes_ano) %>% summarise('casos' = sum(casos_zika), 'populacao' = sum(pop)) %>% 
+                              mutate(incidencia_Zika = 100000 * casos/populacao), 
+                              by = 'mes_ano') %>% 
+                              select(!c(populacao, casos))
+
+graf_incid_municip_mes_ano = full_join(graf_incid_municip_mes_ano, graf_municip_mes_ano_chik %>% group_by(mes_ano) %>% summarise('casos' = sum(casos_chik), 'populacao' = sum(pop)) %>% 
+                              mutate(incidencia_chik = 100000 * casos/populacao), 
+                              by = 'mes_ano') %>% 
+                              select(!c(populacao, casos))
+```
+
+```{r}
+graf_incid_municip_mes_ano %>% pivot_longer(cols = !mes_ano, 
+                                       names_to = 'variavel', 
+                                       values_to = 'metrica') %>% 
+                              mutate(mes_ano = as.Date(as.yearmon(mes_ano, '%m/%Y'))) %>% 
+ggplot(aes(x = mes_ano, y = metrica)) +
+  geom_line(aes(color = variavel), size = 1) +
+  labs(title = 'Incidência das arboviroses por mês/ano', y = 'Incidência', x = 'Mês/Ano', col = 'Arbovirose') +
+  scale_color_manual(labels = c("Chikungunya", "Dengue", 'Zika'), values = c('black', "blue", "red")) +
+  scale_x_date(NULL, date_labels = "%b/%Y", date_breaks = '2 months') +
+  theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, size = 12), 
+        axis.title.x = element_text(size = 18),
+        axis.text.y = element_text(size = 16), 
+        axis.title.y = element_text(size = 18),
+        legend.text = element_text(size = 16),
+        title = element_text(size = 18))
+```
+
+# Casos de arboviroses por ano
+
+## Dengue
+
+```{r }
+casos_municip_ano_dengue = fe_dengue_conf_muni %>% 
+  #select(!c(populacao, ID_MN_RESI, casos_confirmados)) %>% 
+  mutate(Mun = abjutils::rm_accent(toupper(Mun))) %>% 
+  pivot_wider(names_from = NU_ANO, values_from = casos_dengue, values_fill = 0) %>% 
+  rename('Município' = Mun) 
+
+casos_municip_ano_dengue %>% as.data.frame() %>% select(!ID_MN_RESI) %>% 
+  kable(caption = 'Número de casos confirmados da Dengue por Município')
+```
+
+### Letalidade em relação aos casos confirmados para o período.
+
+```{r results='asis'}
+letalidade_dengue = fe_dengue_conf %>% filter(EVOLUCAO == 2) %>% 
+                        group_by(NU_ANO, ID_MN_RESI) %>% count() %>% 
+                        rename('obitos' = n)
+
+letalidade_dengue = inner_join(letalidade_dengue, fe_dengue_conf_muni %>% 
+                                 mutate(Mun = abjutils::rm_accent(toupper(Mun)))) %>% mutate('taxa' = round(100 * obitos/casos_dengue, 3))
+
+anos_letalidade = unique(letalidade_dengue$NU_ANO)
+
+for (ano in anos_letalidade){
+  let_ano = letalidade_dengue %>% 
+  filter(NU_ANO == ano) %>% 
+  rename('Município' = Mun, 'Casos' = casos_dengue, 'Óbitos' = obitos, 'Taxa(%)' = taxa) %>% 
+  as.data.frame() %>% 
+  select(!c(NU_ANO, ID_MN_RESI))
+  
+  let_ano = let_ano[, c('Município', 'Óbitos', 'Casos', 'Taxa(%)')]
+  
+  print(kable(let_ano, caption = paste0('Letalidade da Dengue em relação aos casos confirmados em ', ano)))
+  cat("\n")
+}
+
+```
+
+## Zika
+
+```{r }
+casos_municip_ano_zika = fe_zika_conf_muni %>% 
+  #select(!c(populacao, ID_MN_RESI, casos_confirmados)) %>% 
+  mutate(Mun = abjutils::rm_accent(toupper(Mun))) %>% 
+  pivot_wider(names_from = NU_ANO, values_from = casos_zika, values_fill = 0) %>% 
+  rename('Município' = Mun) 
+
+casos_municip_ano_zika %>% as.data.frame() %>% select(!ID_MN_RESI) %>% 
+  kable(caption = 'Número de casos confirmados da Zika por Município')
+```
+
+### Letalidade em relação aos casos confirmados para o período.
+
+```{r results='asis'}
+letalidade_zika = fe_zika_conf %>% filter(EVOLUCAO == 2) %>% 
+                        group_by(NU_ANO, ID_MN_RESI) %>% count() %>% 
+                        rename('obitos' = n)
+
+letalidade_zika = inner_join(letalidade_zika, fe_zika_conf_muni %>% 
+                                 mutate(Mun = abjutils::rm_accent(toupper(Mun)))) %>% mutate('taxa' = round(100 * obitos/casos_zika, 3))
+
+anos_letalidade = unique(letalidade_zika$NU_ANO)
+
+for (ano in anos_letalidade){
+  let_ano = letalidade_zika %>% 
+  filter(NU_ANO == ano) %>% 
+  rename('Município' = Mun, 'Casos' = casos_zika, 'Óbitos' = obitos, 'Taxa(%)' = taxa) %>% 
+  as.data.frame() %>% 
+  select(!c(NU_ANO, ID_MN_RESI))
+  
+  let_ano = let_ano[, c('Município', 'Óbitos', 'Casos', 'Taxa(%)')]
+  
+  print(kable(let_ano, caption = paste0('Letalidade da zika em relação aos casos confirmados em ', ano)))
+  cat("\n")
+}
+
+```
+
+## Chikungunya
+
+```{r }
+casos_municip_ano_chik = fe_chik_conf_muni %>% 
+  #select(!c(populacao, ID_MN_RESI, casos_confirmados)) %>% 
+  mutate(Mun = abjutils::rm_accent(toupper(Mun))) %>% 
+  pivot_wider(names_from = NU_ANO, values_from = casos_chik, values_fill = 0) %>% 
+  rename('Município' = Mun) 
+
+casos_municip_ano_chik %>% as.data.frame() %>% select(!ID_MN_RESI) %>% 
+  kable(caption = 'Número de casos confirmados da Chikungunya por Município')
+```
+
+### Letalidade em relação a incidência dos casos confirmados para o período.
+
+```{r results='asis'}
+letalidade_chik = fe_chik_conf %>% filter(EVOLUCAO == 2) %>% 
+                        group_by(NU_ANO, ID_MN_RESI) %>% count() %>% 
+                        rename('obitos' = n)
+
+letalidade_chik = inner_join(letalidade_chik, fe_chik_conf_muni %>% 
+                                 mutate(Mun = abjutils::rm_accent(toupper(Mun)))) %>% mutate('taxa' = round(100 * obitos/casos_chik, 3))
+
+anos_letalidade = unique(letalidade_chik$NU_ANO)
+
+for (ano in anos_letalidade){
+  let_ano = letalidade_chik %>% 
+  filter(NU_ANO == ano) %>% 
+  rename('Município' = Mun, 'Casos' = casos_chik, 'Óbitos' = obitos, 'Taxa(%)' = taxa) %>% 
+  as.data.frame() %>% 
+  select(!c(NU_ANO, ID_MN_RESI))
+  
+  let_ano = let_ano[, c('Município', 'Óbitos', 'Casos', 'Taxa(%)')]
+  
+  print(kable(let_ano, caption = paste0('Letalidade da chik em relação aos casos confirmados em ', ano)))
+  cat("\n")
+}
+```
+
+## Gráfico de casos confirmados
+
+```{r include = FALSE}
+casos_arboviroses_ano = fe_dengue_conf_muni %>% 
+  group_by(NU_ANO) %>% summarise('casos_dengue' = sum(casos_dengue)) %>% 
+  full_join(fe_zika_conf_muni %>% group_by(NU_ANO) %>% summarise('casos_zika' = sum(casos_zika))) %>% 
+  full_join(fe_chik_conf_muni %>% group_by(NU_ANO) %>% summarise('casos_chik' = sum(casos_chik)))
+```
+
+```{r}
+casos_arboviroses_ano %>% pivot_longer(cols = !NU_ANO, 
+                                       names_to = 'variavel', 
+                                       values_to = 'metrica') %>% 
+ggplot(aes(x = NU_ANO, y = metrica)) +
+  geom_line(aes(color = variavel), size = 1) +
+  labs(title = 'Número de casos confirmados das arboviroses por ano', y = 'Número de Casos', x = 'Ano', col = 'Arbovirose') +
+  scale_color_manual(labels = c("Chikungunya", "Dengue", 'Zika'), values = c('black', "blue", "red")) +
+  theme_minimal() +
+    theme(axis.text.x = element_text(size = 16), 
+        axis.title.x = element_text(size = 18),
+        axis.text.y = element_text(size = 16), 
+        axis.title.y = element_text(size = 18),
+        legend.text = element_text(size = 16),
+        title = element_text(size = 18))
+
+```
+
+# Casos confirmados de arboviroses por mês/ano
+
+## Dengue
+
+```{r results='asis'}
+for (ano in 2016:2019){
+  casos_municip_mes_ano_dengue = fe_dengue_conf %>% filter(NU_ANO == ano) %>% 
+    mutate(DT_NOTIFIC = as.Date(DT_NOTIFIC)) %>% 
+    mutate(mes_ano = format(DT_NOTIFIC, "%m/%Y")) %>% 
+    group_by(mes_ano, ID_MN_RESI) %>% count() %>% rename('casos_dengue' = n)
+
+  casos_municip_mes_ano_dengue = casos_municip_mes_ano_dengue %>% 
+    pivot_wider(names_from = mes_ano, values_from = casos_dengue, values_fill = 0) %>% 
+    inner_join(aux_pop %>% select(IBGE_6, mun), by = c('ID_MN_RESI' = 'IBGE_6')) %>% 
+    as.data.frame() %>% 
+    select(!(ID_MN_RESI)) %>% 
+    relocate(mun) %>% 
+    rename('Município' = mun)
+    
+  print(kable(casos_municip_mes_ano_dengue, caption = paste0('Número de casos confirmados da Dengue por Município em ', ano)))
+  cat("\n")
+}  
+```
+
+### Letalidade em relação a incidência dos casos confirmados para o período.
+
+```{r results='asis'}
+#anos = sort(unique(dng$NU_ANO[which(dng$EVOLUCAO == 2)]))
+
+for (ano in 2016:2019){
+  letalidade_dengue = fe_dengue_conf %>% filter(EVOLUCAO == 2, NU_ANO == ano) %>% 
+                        mutate(DT_NOTIFIC = as.Date(DT_NOTIFIC),
+                                mes_ano = format(DT_NOTIFIC, "%m/%Y")) %>% 
+                        group_by(mes_ano, ID_MN_RESI) %>% count() %>% 
+                        rename('obitos' = n)
+  if(nrow(letalidade_dengue) > 0){
+    letalidade_dengue = inner_join(letalidade_dengue, fe_dengue_conf_muni %>% filter(NU_ANO == ano) %>%                                  mutate(Mun = abjutils::rm_accent(toupper(Mun)))) %>% mutate('taxa' = round(100 * obitos/casos_dengue, 3))
+    
+    letalidade_dengue = letalidade_dengue %>% 
+      rename('Município' = Mun, 'Casos' = casos_dengue, 'Óbitos' = obitos, 'Taxa(%)' = taxa) %>% 
+      as.data.frame() %>% 
+      select(!c(NU_ANO, ID_MN_RESI)) %>% pivot_wider(names_from = mes_ano, values_from = c('Óbitos', Casos, 'Taxa(%)'), values_fill = 0)
+  
+    print(kable(letalidade_dengue, caption = paste0('Letalidade da Dengue em relação aos casos confirmados em ', ano)))
+      cat("\n")}
+}
+```
+
+
+## Zika
+
+```{r results='asis'}
+for (ano in 2016:2019){
+  casos_municip_mes_ano_zika = fe_zika_conf %>% filter(NU_ANO == ano) %>% 
+    mutate(DT_NOTIFIC = as.Date(DT_NOTIFIC)) %>% 
+    mutate(mes_ano = format(DT_NOTIFIC, "%m/%Y")) %>% 
+    group_by(mes_ano, ID_MN_RESI) %>% count() %>% rename('casos_zika' = n)
+
+  casos_municip_mes_ano_zika = casos_municip_mes_ano_zika %>% 
+    pivot_wider(names_from = mes_ano, values_from = casos_zika, values_fill = 0) %>% 
+    inner_join(aux_pop %>% select(IBGE_6, mun), by = c('ID_MN_RESI' = 'IBGE_6')) %>% 
+    as.data.frame() %>% 
+    select(!(ID_MN_RESI)) %>% 
+    relocate(mun) %>% 
+    rename('Município' = mun)
+    
+  print(kable(casos_municip_mes_ano_zika, caption = paste0('Número de casos confirmados da Zika por Município em ', ano)))
+  cat("\n")
+}  
+```
+
+
+### Letalidade em relação a incidência dos casos confirmados para o período.
+
+```{r results='asis'}
+for (ano in 2016:2019){
+  letalidade_zika = fe_zika_conf %>% filter(EVOLUCAO == 2, NU_ANO == ano) %>% 
+                        mutate(DT_NOTIFIC = as.Date(DT_NOTIFIC),
+                                mes_ano = format(DT_NOTIFIC, "%m/%Y")) %>% 
+                        group_by(mes_ano, ID_MN_RESI) %>% count() %>% 
+                        rename('obitos' = n)
+  if(nrow(letalidade_zika) > 0){
+    letalidade_zika = inner_join(letalidade_zika, fe_zika_conf_muni %>% filter(NU_ANO == ano) %>%                                  mutate(Mun = abjutils::rm_accent(toupper(Mun)))) %>% mutate('taxa' = round(100 * obitos/casos_zika, 3))
+  
+    letalidade_zika = letalidade_zika %>% 
+      rename('Município' = Mun, 'Casos' = casos_zika, 'Óbitos' = obitos, 'Taxa(%)' = taxa) %>% 
+      as.data.frame() %>% 
+      select(!c(NU_ANO, ID_MN_RESI)) %>% pivot_wider(names_from = mes_ano, values_from = c('Óbitos', Casos, 'Taxa(%)'), values_fill = 0)
+  
+    print(kable(letalidade_zika, caption = paste0('Letalidade da zika em relação aos casos confirmados em ', ano)))
+      cat("\n")}
+}
+```
+
+
+## Chikungunya
+
+```{r results='asis'}
+for (ano in 2016:2019){
+  casos_municip_mes_ano_chik = fe_chik_conf %>% filter(NU_ANO == ano) %>% 
+    mutate(DT_NOTIFIC = as.Date(DT_NOTIFIC)) %>% 
+    mutate(mes_ano = format(DT_NOTIFIC, "%m/%Y")) %>% 
+    group_by(mes_ano, ID_MN_RESI) %>% count() %>% rename('casos_chik' = n)
+
+  casos_municip_mes_ano_chik = casos_municip_mes_ano_chik %>% 
+    pivot_wider(names_from = mes_ano, values_from = casos_chik, values_fill = 0) %>% 
+    inner_join(aux_pop %>% select(IBGE_6, mun), by = c('ID_MN_RESI' = 'IBGE_6')) %>% 
+    as.data.frame() %>% 
+    select(!(ID_MN_RESI)) %>% 
+    relocate(mun) %>% 
+    rename('Município' = mun)
+    
+  print(kable(casos_municip_mes_ano_chik, caption = paste0('Número de casos confirmados da Chikungunya por Município em ', ano)))
+  cat("\n")
+}  
+```
+
+
+### Letalidade em relação a incidência dos casos confirmados para o período.
+
+```{r results='asis'}
+for (ano in 2016:2019){
+  letalidade_chik = fe_chik_conf %>% filter(EVOLUCAO == 2, NU_ANO == ano) %>% 
+                        mutate(DT_NOTIFIC = as.Date(DT_NOTIFIC),
+                                mes_ano = format(DT_NOTIFIC, "%m/%Y")) %>% 
+                        group_by(mes_ano, ID_MN_RESI) %>% count() %>% 
+                        rename('obitos' = n)
+  if(nrow(letalidade_chik) > 0){
+    letalidade_chik = inner_join(letalidade_chik, fe_chik_conf_muni %>% filter(NU_ANO == ano) %>%                                  mutate(Mun = abjutils::rm_accent(toupper(Mun)))) %>% mutate('taxa' = round(100 * obitos/casos_chik, 3))
+  
+    letalidade_chik = letalidade_chik %>% 
+      rename('Município' = Mun, 'Casos' = casos_chik, 'Óbitos' = obitos, 'Taxa(%)' = taxa) %>% 
+      as.data.frame() %>% 
+      select(!c(NU_ANO, ID_MN_RESI)) %>% pivot_wider(names_from = mes_ano, values_from = c('Óbitos', Casos, 'Taxa(%)'), values_fill = 0)
+  
+    print(kable(letalidade_chik, caption = paste0('Letalidade da Chikungunya em relação aos casos confirmados em ', ano)))
+      cat("\n")}
+}
+```
+
+## Gráfico de casos confirmados
+
+```{r include = FALSE}
+casos_arboviroses_mes_ano = fe_dengue_conf %>% 
+    mutate(mes_ano = format(as.Date(DT_NOTIFIC), "%m/%Y")) %>% 
+    group_by(mes_ano, ID_MN_RESI) %>% count() %>% group_by(mes_ano) %>%     summarise('casos_dng' = sum(n))
+
+casos_arboviroses_mes_ano = casos_arboviroses_mes_ano %>% full_join(fe_zika_conf %>% 
+    mutate(mes_ano = format(as.Date(DT_NOTIFIC), "%m/%Y")) %>% 
+    group_by(mes_ano, ID_MN_RESI) %>% count() %>% group_by(mes_ano) %>%     summarise('casos_zk' = sum(n)))
+  
+casos_arboviroses_mes_ano = casos_arboviroses_mes_ano %>% full_join(fe_chik_conf %>% 
+    mutate(mes_ano = format(as.Date(DT_NOTIFIC), "%m/%Y")) %>% 
+    group_by(mes_ano, ID_MN_RESI) %>% count() %>% group_by(mes_ano) %>%     summarise('casos_chik' = sum(n)))
+```
+
+```{r}
+casos_arboviroses_mes_ano %>% pivot_longer(cols = !c(mes_ano), 
+                                       names_to = 'variavel', 
+                                       values_to = 'metrica') %>% 
+                              mutate(mes_ano = as.Date(as.yearmon(mes_ano, '%m/%Y'))) %>% 
+ggplot(aes(x = mes_ano, y = metrica)) +
+  geom_line(aes(color = variavel), size = 1) +
+  labs(title = 'Número de casos confirmados das arboviroses por mês/ano', y = 'Número de Casos', x = 'Mês/Ano', col = 'Arbovirose') +
+  scale_color_manual(labels = c("Chikungunya", "Dengue", 'Zika'), values = c('black', "blue", "red")) +
+  scale_x_date(NULL, date_labels = "%b/%Y", date_breaks = '2 months') +
+  theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, size = 12), 
+        axis.title.x = element_text(size = 18),
+        axis.text.y = element_text(size = 16), 
+        axis.title.y = element_text(size = 18),
+        legend.text = element_text(size = 16),
+        title = element_text(size = 18))
+```
